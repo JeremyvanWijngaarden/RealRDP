@@ -1,0 +1,52 @@
+# Maintainer: Jeremy van Wijngaarden <jeremy.vanwijngaarden@vanschie.com>
+# TODO before publishing: set _gh_user, tag RealRDP v$pkgver and the IronRDP fork realrdp-v$pkgver.
+_gh_user=CHANGEME
+pkgname=realrdp
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="mstsc-compatible Remote Desktop (RDP) client with RemoteApp support, built on IronRDP"
+arch=('x86_64')
+url="https://github.com/$_gh_user/RealRDP"
+license=('MIT')
+depends=('alsa-lib' 'dbus' 'hicolor-icon-theme' 'libx11' 'libxi' 'libxkbcommon' 'libxkbcommon-x11' 'vulkan-icd-loader')
+makedepends=('cargo' 'git')
+# aws-lc-sys and the opus codec build C code with makepkg's CFLAGS; with -flto=auto those static
+# archives become GCC bitcode that rust-lld cannot link.
+options=(!lto)
+optdepends=('cups: printer redirection'
+            'kwallet: saving credentials (any org.freedesktop.secrets provider works)'
+            'xdg-desktop-portal: file and folder dialogs')
+# IronRDP is a git dependency patched to ../IronRDP in Cargo.toml, so the fork is checked out next to
+# the source tree: makepkg puts the git source in $srcdir/IronRDP, exactly where the patch looks.
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
+        "IronRDP::git+https://github.com/$_gh_user/IronRDP.git#tag=realrdp-v$pkgver")
+sha256sums=('SKIP' 'SKIP')
+
+prepare() {
+    cd "RealRDP-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "RealRDP-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release
+}
+
+check() {
+    cd "RealRDP-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --frozen --release
+}
+
+package() {
+    cd "RealRDP-$pkgver"
+    install -Dm755 target/release/RealRDP "$pkgdir/usr/bin/realrdp"
+    install -Dm644 realrdp-icons/realrdp.desktop "$pkgdir/usr/share/applications/realrdp.desktop"
+    for icon in realrdp-icons/hicolor/*/apps/realrdp.*; do
+        install -Dm644 "$icon" "$pkgdir/usr/share/icons/${icon#realrdp-icons/}"
+    done
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

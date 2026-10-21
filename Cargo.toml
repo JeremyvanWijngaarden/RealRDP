@@ -3,6 +3,8 @@ name = "RealRDP"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
+license = "MIT"
+description = "mstsc-compatible Remote Desktop (RDP) client with RemoteApp support, built on IronRDP"
 
 # IronRDP git main: RAIL (RemoteApp) support is not on crates.io yet. Pinned rev, bump deliberately.
 [dependencies]
