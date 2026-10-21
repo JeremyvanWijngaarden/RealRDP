@@ -24,7 +24,7 @@ optdepends=('cups: printer redirection'
 # the source tree: makepkg puts the git source in $srcdir/IronRDP, exactly where the patch looks.
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
         "IronRDP::git+https://github.com/$_gh_user/IronRDP.git#tag=$_ironrdp_tag")
-sha256sums=('3418dbea12084dd93d0641a60641cf653aca3ce0a0199277ff03097aef6c6753'
+sha256sums=('04fb97cbeca25c1c355549d02af63f9bfd89524018610c85d6f8f211f2242546'
             'ab720ff7de3ba9483127dd287176da75ad4570b2a522ab6235962a4a43374559')
 
 prepare() {

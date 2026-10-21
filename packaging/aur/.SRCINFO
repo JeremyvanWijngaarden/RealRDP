@@ -1,6 +1,6 @@
 pkgbase = realrdp
 	pkgdesc = mstsc-compatible Remote Desktop (RDP) client with RemoteApp support, built on IronRDP
-	pkgver = 0.1.1
+	pkgver = 0.1.2
 	pkgrel = 1
 	url = https://github.com/JeremyvanWijngaarden/RealRDP
 	arch = x86_64
@@ -21,9 +21,9 @@ pkgbase = realrdp
 	optdepends = xdg-desktop-portal: file and folder dialogs
 	options = !lto
 	backup = etc/pacman.d/realrdp-repo
-	source = realrdp-0.1.1.tar.gz::https://github.com/JeremyvanWijngaarden/RealRDP/archive/refs/tags/v0.1.1.tar.gz
+	source = realrdp-0.1.2.tar.gz::https://github.com/JeremyvanWijngaarden/RealRDP/archive/refs/tags/v0.1.2.tar.gz
 	source = IronRDP::git+https://github.com/JeremyvanWijngaarden/IronRDP.git#tag=realrdp-v0.1.0
-	sha256sums = 3418dbea12084dd93d0641a60641cf653aca3ce0a0199277ff03097aef6c6753
+	sha256sums = 04fb97cbeca25c1c355549d02af63f9bfd89524018610c85d6f8f211f2242546
 	sha256sums = ab720ff7de3ba9483127dd287176da75ad4570b2a522ab6235962a4a43374559
 
 pkgname = realrdp
