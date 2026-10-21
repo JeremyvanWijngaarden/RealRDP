@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=RealRDP
+GenericName=Remote Desktop Client
+Comment=RDP-client die wél werkt op Linux
+Exec=realrdp %U
+StartupWMClass=realrdp
+MimeType=application/x-rdp;
+Icon=realrdp
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=rdp;remote;desktop;windows;

@@ -1,0 +1,83 @@
+[package]
+name = "RealRDP"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+
+# IronRDP git main: RAIL (RemoteApp) support is not on crates.io yet. Pinned rev, bump deliberately.
+[dependencies]
+ironrdp = { git = "https://github.com/Devolutions/IronRDP", rev = "0f9154d2128f8c65f4d51f6b7eb7cb1d66a12329", features = ["connector", "cliprdr", "input", "pdu", "client", "client-all"] }
+ironrdp-viewer = { git = "https://github.com/Devolutions/IronRDP", rev = "0f9154d2128f8c65f4d51f6b7eb7cb1d66a12329" }
+ironrdp-rail = { git = "https://github.com/Devolutions/IronRDP", rev = "0f9154d2128f8c65f4d51f6b7eb7cb1d66a12329" }
+ironrdp-cfg = { git = "https://github.com/Devolutions/IronRDP", rev = "0f9154d2128f8c65f4d51f6b7eb7cb1d66a12329" }
+ironrdp-propertyset = { git = "https://github.com/Devolutions/IronRDP", rev = "0f9154d2128f8c65f4d51f6b7eb7cb1d66a12329" }
+ironrdp-rdpdr-native = { git = "https://github.com/Devolutions/IronRDP", rev = "0f9154d2128f8c65f4d51f6b7eb7cb1d66a12329" }
+ironrdp-rdpfile = { git = "https://github.com/Devolutions/IronRDP", rev = "0f9154d2128f8c65f4d51f6b7eb7cb1d66a12329" }
+softbuffer = "0.4"
+x11rb = { version = "0.13", features = ["randr"] }
+raw-window-handle = "0.6"
+winit = { version = "0.30", features = ["rwh_06"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+eframe = "0.37"
+rfd = "0.17"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+keyring = "4"
+
+[profile.release]
+debug = 1
+
+# RDP decoding and 40 MB framebuffers are unusable unoptimized; keep only our own code at opt-level 0.
+[profile.dev.package."*"]
+opt-level = 3
+
+# Local IronRDP checkout with the 0x0429 connect-time Bandwidth Measure Stop fix (branch
+# fix/connect-time-bw-stop-0429). Every git-sourced crate is redirected so there is one copy of each.
+# Drop this section once upstream merges the fix and the rev above is bumped past it.
+[patch."https://github.com/Devolutions/IronRDP"]
+ironrdp = { path = "../IronRDP/crates/ironrdp" }
+ironrdp-async = { path = "../IronRDP/crates/ironrdp-async" }
+ironrdp-bulk = { path = "../IronRDP/crates/ironrdp-bulk" }
+ironrdp-cfg = { path = "../IronRDP/crates/ironrdp-cfg" }
+ironrdp-client = { path = "../IronRDP/crates/ironrdp-client" }
+ironrdp-cliprdr = { path = "../IronRDP/crates/ironrdp-cliprdr" }
+ironrdp-cliprdr-format = { path = "../IronRDP/crates/ironrdp-cliprdr-format" }
+ironrdp-cliprdr-native = { path = "../IronRDP/crates/ironrdp-cliprdr-native" }
+ironrdp-connector = { path = "../IronRDP/crates/ironrdp-connector" }
+ironrdp-core = { path = "../IronRDP/crates/ironrdp-core" }
+ironrdp-daemon = { path = "../IronRDP/crates/ironrdp-daemon" }
+ironrdp-displaycontrol = { path = "../IronRDP/crates/ironrdp-displaycontrol" }
+ironrdp-dvc = { path = "../IronRDP/crates/ironrdp-dvc" }
+ironrdp-dvc-com-plugin = { path = "../IronRDP/crates/ironrdp-dvc-com-plugin" }
+ironrdp-dvc-pipe-proxy = { path = "../IronRDP/crates/ironrdp-dvc-pipe-proxy" }
+ironrdp-echo = { path = "../IronRDP/crates/ironrdp-echo" }
+ironrdp-egfx = { path = "../IronRDP/crates/ironrdp-egfx" }
+ironrdp-error = { path = "../IronRDP/crates/ironrdp-error" }
+ironrdp-graphics = { path = "../IronRDP/crates/ironrdp-graphics" }
+ironrdp-input = { path = "../IronRDP/crates/ironrdp-input" }
+ironrdp-mstsgu = { path = "../IronRDP/crates/ironrdp-mstsgu" }
+ironrdp-pdu = { path = "../IronRDP/crates/ironrdp-pdu" }
+ironrdp-propertyset = { path = "../IronRDP/crates/ironrdp-propertyset" }
+ironrdp-rail = { path = "../IronRDP/crates/ironrdp-rail" }
+ironrdp-rdcleanpath = { path = "../IronRDP/crates/ironrdp-rdcleanpath" }
+ironrdp-rdpdr = { path = "../IronRDP/crates/ironrdp-rdpdr" }
+ironrdp-rdpdr-native = { path = "../IronRDP/crates/ironrdp-rdpdr-native" }
+ironrdp-rdpeai = { path = "../IronRDP/crates/ironrdp-rdpeai" }
+ironrdp-rdpei = { path = "../IronRDP/crates/ironrdp-rdpei" }
+ironrdp-rdpel = { path = "../IronRDP/crates/ironrdp-rdpel" }
+ironrdp-rdpemt = { path = "../IronRDP/crates/ironrdp-rdpemt" }
+ironrdp-rdpeudp = { path = "../IronRDP/crates/ironrdp-rdpeudp" }
+ironrdp-rdpeudp-tokio = { path = "../IronRDP/crates/ironrdp-rdpeudp-tokio" }
+ironrdp-rdpewa = { path = "../IronRDP/crates/ironrdp-rdpewa" }
+ironrdp-rdpewa-native = { path = "../IronRDP/crates/ironrdp-rdpewa-native" }
+ironrdp-rdpfile = { path = "../IronRDP/crates/ironrdp-rdpfile" }
+ironrdp-rdpsnd = { path = "../IronRDP/crates/ironrdp-rdpsnd" }
+ironrdp-rdpsnd-native = { path = "../IronRDP/crates/ironrdp-rdpsnd-native" }
+ironrdp-rpc = { path = "../IronRDP/crates/ironrdp-rpc" }
+ironrdp-session = { path = "../IronRDP/crates/ironrdp-session" }
+ironrdp-svc = { path = "../IronRDP/crates/ironrdp-svc" }
+ironrdp-tls = { path = "../IronRDP/crates/ironrdp-tls" }
+ironrdp-tokio = { path = "../IronRDP/crates/ironrdp-tokio" }
+ironrdp-viewer = { path = "../IronRDP/crates/ironrdp-viewer" }
+ironrdp-vmconnect = { path = "../IronRDP/crates/ironrdp-vmconnect" }
