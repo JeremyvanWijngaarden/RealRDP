@@ -1,6 +1,6 @@
 # Maintainer: Jeremy van Wijngaarden <jeremy.vanwijngaarden@vanschie.com>
 # TODO before publishing: set _gh_user, tag RealRDP v$pkgver and the IronRDP fork realrdp-v$pkgver.
-_gh_user=CHANGEME
+_gh_user=JeremyvanWijngaarden
 pkgname=realrdp
 pkgver=0.1.0
 pkgrel=1
