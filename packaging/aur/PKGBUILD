@@ -1,6 +1,7 @@
 # Maintainer: Jeremy van Wijngaarden <jeremy.vanwijngaarden@vanschie.com>
-# TODO before publishing: set _gh_user, tag RealRDP v$pkgver and the IronRDP fork realrdp-v$pkgver.
+# Release checklist: tag RealRDP v$pkgver; bump _ironrdp_tag only when the IronRDP patches change.
 _gh_user=JeremyvanWijngaarden
+_ironrdp_tag=realrdp-v0.1.0
 pkgname=realrdp
 pkgver=0.1.1
 pkgrel=1
@@ -22,8 +23,8 @@ optdepends=('cups: printer redirection'
 # IronRDP is a git dependency patched to ../IronRDP in Cargo.toml, so the fork is checked out next to
 # the source tree: makepkg puts the git source in $srcdir/IronRDP, exactly where the patch looks.
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
-        "IronRDP::git+https://github.com/$_gh_user/IronRDP.git#tag=realrdp-v$pkgver")
-sha256sums=('c8056bafbebc7e534467d2229f36f9c674c54177486850e1f8e3387c67cff79c'
+        "IronRDP::git+https://github.com/$_gh_user/IronRDP.git#tag=$_ironrdp_tag")
+sha256sums=('3418dbea12084dd93d0641a60641cf653aca3ce0a0199277ff03097aef6c6753'
             'ab720ff7de3ba9483127dd287176da75ad4570b2a522ab6235962a4a43374559')
 
 prepare() {
