@@ -2,7 +2,8 @@
 Type=Application
 Name=RealRDP
 GenericName=Remote Desktop Client
-Comment=RDP-client die wél werkt op Linux
+Comment=Connect to a Windows desktop or RemoteApp over RDP
+Comment[nl]=Verbind met een Windows-bureaublad of RemoteApp via RDP
 Exec=realrdp %U
 StartupWMClass=realrdp
 MimeType=application/x-rdp;
