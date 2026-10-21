@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-rdp">
+    <comment>Remote Desktop connection</comment>
+    <comment xml:lang="nl">Extern bureaublad-verbinding</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.rdp"/>
+    <glob pattern="*.RDP"/>
+    <generic-icon name="realrdp"/>
+  </mime-type>
+</mime-info>

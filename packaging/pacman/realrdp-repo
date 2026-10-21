@@ -1,0 +1,7 @@
+# RealRDP pacman repository. Add to /etc/pacman.conf:
+#
+#   [realrdp]
+#   Include = /etc/pacman.d/realrdp-repo
+#
+SigLevel = Optional TrustAll
+Server = https://jeremyvanwijngaarden.github.io/RealRDP/$arch

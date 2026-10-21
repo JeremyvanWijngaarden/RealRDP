@@ -2,7 +2,7 @@
 # TODO before publishing: set _gh_user, tag RealRDP v$pkgver and the IronRDP fork realrdp-v$pkgver.
 _gh_user=JeremyvanWijngaarden
 pkgname=realrdp
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="mstsc-compatible Remote Desktop (RDP) client with RemoteApp support, built on IronRDP"
 arch=('x86_64')
@@ -10,6 +10,9 @@ url="https://github.com/$_gh_user/RealRDP"
 license=('MIT')
 depends=('alsa-lib' 'dbus' 'hicolor-icon-theme' 'libx11' 'libxi' 'libxkbcommon' 'libxkbcommon-x11' 'vulkan-icd-loader')
 makedepends=('cargo' 'git')
+# Opens .rdp files from a file manager (MIME type) and keeps itself updatable (pacman.d repo file).
+depends+=('shared-mime-info')
+backup=('etc/pacman.d/realrdp-repo')
 # aws-lc-sys and the opus codec build C code with makepkg's CFLAGS; with -flto=auto those static
 # archives become GCC bitcode that rust-lld cannot link.
 options=(!lto)
@@ -49,5 +52,7 @@ package() {
     for icon in realrdp-icons/hicolor/*/apps/realrdp.*; do
         install -Dm644 "$icon" "$pkgdir/usr/share/icons/${icon#realrdp-icons/}"
     done
+    install -Dm644 realrdp-icons/realrdp-mime.xml "$pkgdir/usr/share/mime/packages/realrdp.xml"
+    install -Dm644 packaging/pacman/realrdp-repo "$pkgdir/etc/pacman.d/realrdp-repo"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
