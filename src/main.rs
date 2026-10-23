@@ -5,6 +5,7 @@
 //! local X11 window.
 
 mod dialog;
+mod hyprland;
 mod keymap;
 mod rail_app;
 mod window_order;
@@ -106,8 +107,9 @@ fn main() -> anyhow::Result<()> {
 
     // In RemoteApp mode the virtual desktop covers all local monitors (unless a size was given) and
     // the server gets the monitor layout, so windows maximize to one monitor instead of all of them.
+    let x11_monitors = x11_monitors().unwrap_or_default();
     if config.connector().remote_application_mode
-        && let Some((monitors, width, height)) = monitor_layout()
+        && let Some((monitors, width, height)) = monitor_layout(&x11_monitors)
     {
         let mut args = args.clone();
         if config.properties().desktop_width().ok().flatten().is_none() {
@@ -145,8 +147,9 @@ fn main() -> anyhow::Result<()> {
         client = client.with_rdpdr_backend_factory(Box::new(factory));
     }
     let input_event_sender = client.input_sender();
+    let hyprland = remote_app.then(|| hyprland::Hyprland::detect(x11_monitors)).flatten();
     let mut rail_app = remote_app
-        .then(|| rail_app::RailApp::new(&event_loop, input_event_sender.clone(), window_icon()))
+        .then(|| rail_app::RailApp::new(&event_loop, input_event_sender.clone(), window_icon(), hyprland))
         .transpose()?;
     let mut desktop_app = (!remote_app)
         .then(|| {
@@ -185,10 +188,55 @@ fn main() -> anyhow::Result<()> {
 
     match (&mut rail_app, &mut desktop_app) {
         (Some(app), _) => event_loop.run_app(app)?,
-        (_, Some(app)) => event_loop.run_app(app)?,
+        (_, Some(app)) => {
+            event_loop.run_app(app)?;
+            if let Some(error) = app.connection_error() {
+                error_dialog(&format!("Connection failed:\n{error}"));
+            }
+        }
         _ => unreachable!(),
     }
     Ok(())
+}
+
+/// Reports an error in a window: launched from a menu or a file manager, stderr is invisible.
+pub fn error_dialog(text: &str) {
+    rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Error)
+        .set_title("Remote Desktop Connection")
+        .set_description(text)
+        .show();
+}
+
+/// The local monitors as Xwayland or the X server reports them through RandR.
+fn x11_monitors() -> Option<Vec<hyprland::X11Monitor>> {
+    use x11rb::connection::Connection as _;
+    use x11rb::protocol::randr::ConnectionExt as _;
+    use x11rb::protocol::xproto::ConnectionExt as _;
+
+    let (conn, screen) = x11rb::connect(None).ok()?;
+    let root = conn.setup().roots.get(screen)?.root;
+    let found = conn.randr_get_monitors(root, true).ok()?.reply().ok()?.monitors;
+    let monitors = found
+        .iter()
+        .map(|m| {
+            let name = conn
+                .get_atom_name(m.name)
+                .ok()
+                .and_then(|c| c.reply().ok())
+                .map(|r| String::from_utf8_lossy(&r.name).into_owned())
+                .unwrap_or_default();
+            hyprland::X11Monitor {
+                name,
+                x: i32::from(m.x),
+                y: i32::from(m.y),
+                width: u32::from(m.width),
+                height: u32::from(m.height),
+                primary: m.primary,
+            }
+        })
+        .collect();
+    Some(monitors)
 }
 
 /// Local monitors as [MS-RDPBCGR] 2.2.1.3.6 wants them (relative to the primary monitor's top-left
@@ -197,24 +245,28 @@ fn main() -> anyhow::Result<()> {
 ///
 /// shortcut: assumes the primary monitor sits at the top-left of the bounding box, as RAIL window
 /// offsets are then equal to local X11 positions; translate in `RailApp` once that is not the case.
-fn monitor_layout() -> Option<(Vec<Monitor>, u16, u16)> {
-    use x11rb::connection::Connection as _;
-    use x11rb::protocol::randr::ConnectionExt as _;
-
-    let (conn, screen) = x11rb::connect(None).ok()?;
-    let root = conn.setup().roots.get(screen)?.root;
-    let found = conn.randr_get_monitors(root, true).ok()?.reply().ok()?.monitors;
-    let primary = found.iter().find(|m| m.primary).or(found.first())?;
-    let (px, py) = (i32::from(primary.x), i32::from(primary.y));
+fn monitor_layout(found: &[hyprland::X11Monitor]) -> Option<(Vec<Monitor>, u16, u16)> {
+    // Xwayland under Hyprland (and other wlroots-style compositors) marks no monitor as primary,
+    // and the server rejects a layout without exactly one PRIMARY flag (ERRINFO_BAD_MONITOR_DATA).
+    // Fall back to the top-left monitor, which is where the offsets are measured from anyway.
+    let primary = found
+        .iter()
+        .find(|m| m.primary)
+        .or_else(|| found.iter().min_by_key(|m| (m.y, m.x)))?;
+    let (px, py) = (primary.x, primary.y);
     let monitors: Vec<Monitor> = found
         .iter()
         .take(MONITOR_COUNT_MAX)
         .map(|m| Monitor {
-            left: i32::from(m.x) - px,
-            top: i32::from(m.y) - py,
-            right: i32::from(m.x) - px + i32::from(m.width) - 1,
-            bottom: i32::from(m.y) - py + i32::from(m.height) - 1,
-            flags: if m.primary { MonitorFlags::PRIMARY } else { MonitorFlags::empty() },
+            left: m.x - px,
+            top: m.y - py,
+            right: m.x - px + m.width as i32 - 1,
+            bottom: m.y - py + m.height as i32 - 1,
+            flags: if std::ptr::eq(m, primary) {
+                MonitorFlags::PRIMARY
+            } else {
+                MonitorFlags::empty()
+            },
         })
         .collect();
     let width = monitors.iter().map(|m| m.right + 1).max()?;

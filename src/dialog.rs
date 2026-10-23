@@ -508,6 +508,8 @@ pub fn credentials(rdp_file: &std::path::Path) -> anyhow::Result<Option<Outcome>
 fn show(dialog: Dialog, size: [f32; 2]) -> anyhow::Result<Option<Outcome>> {
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size(size)
+        // Fixed size like mstsc; it also makes tiling compositors (Hyprland) float the dialog.
+        .with_resizable(false)
         .with_app_id(crate::WM_CLASS);
     if let Ok(icon) = eframe::icon_data::from_png_bytes(crate::ICON_PNG) {
         viewport = viewport.with_icon(icon);

@@ -19,7 +19,8 @@ backup=('etc/pacman.d/realrdp-repo')
 options=(!lto)
 optdepends=('cups: printer redirection'
             'kwallet: saving credentials (any org.freedesktop.secrets provider works)'
-            'xdg-desktop-portal: file and folder dialogs')
+            'xdg-desktop-portal: file and folder dialogs'
+            'zenity: error dialogs')
 # IronRDP is a git dependency patched to ../IronRDP in Cargo.toml, so the fork is checked out next to
 # the source tree: makepkg puts the git source in $srcdir/IronRDP, exactly where the patch looks.
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"

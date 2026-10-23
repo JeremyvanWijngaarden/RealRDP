@@ -18,11 +18,18 @@ use ironrdp::client::rdp::{AutoReconnectDecision, RdpInputEvent, RdpInputSender,
 use ironrdp::input::{MouseButton, MousePosition, Operation, Scancode, WheelRotations};
 use ironrdp_rail::pdu::{ActivatePdu, SystemCommand, SystemCommandPdu};
 use raw_window_handle::{DisplayHandle, HasDisplayHandle as _};
+
+use crate::hyprland::Hyprland;
+
+/// How long a new window keeps the title its Hyprland window rule matches on. Hyprland records
+/// the initial title when the surface first commits, which happens after our first draw, and
+/// a title change sent right after creation would overtake it.
+const TITLE_DELAY: std::time::Duration = std::time::Duration::from_millis(300);
 use tracing::{debug, error, info, warn};
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::PhysicalKey;
 use winit::platform::x11::{WindowAttributesExtX11 as _, WindowType};
 use winit::window::{CursorIcon, CustomCursor, Icon, Window, WindowAttributes, WindowId};
@@ -42,6 +49,12 @@ type Surface = softbuffer::Surface<DisplayHandle<'static>, Arc<Window>>;
 struct RemoteWindow {
     info: WindowInfo,
     local: Option<(Arc<Window>, Surface)>,
+    /// Under Hyprland: the title the window was mapped with, which identifies it in Hyprland's
+    /// window rules and dispatchers, and the monitor Hyprland last assigned to it.
+    initial_title: Option<String>,
+    monitor: Option<String>,
+    /// When the real title replaces `initial_title` (see [`TITLE_DELAY`]).
+    title_due: Option<std::time::Instant>,
 }
 
 impl RemoteWindow {
@@ -70,6 +83,7 @@ pub struct RailApp {
     icon: Option<Icon>,
     cursor_visible: bool,
     input_database: ironrdp::input::Database,
+    hyprland: Option<Hyprland>,
 }
 
 impl RailApp {
@@ -77,7 +91,11 @@ impl RailApp {
         event_loop: &EventLoop<RdpOutputEvent>,
         input: RdpInputSender,
         icon: Option<Icon>,
+        hyprland: Option<Hyprland>,
     ) -> anyhow::Result<Self> {
+        if let Some(hyprland) = &hyprland {
+            hyprland.install_rules();
+        }
         // SAFETY: the context lives inside the app, which is dropped before the event loop ends.
         // Same approach as the upstream ironrdp-viewer.
         let display_handle = unsafe {
@@ -100,6 +118,7 @@ impl RailApp {
             icon,
             cursor_visible: true,
             input_database: ironrdp::input::Database::new(),
+            hyprland,
         })
     }
 
@@ -159,8 +178,12 @@ impl RailApp {
         let w = self.windows.entry(id).or_insert_with(|| RemoteWindow {
             info: WindowInfo { id: info.id, ..Default::default() },
             local: None,
+            initial_title: None,
+            monitor: None,
+            title_due: None,
         });
         let i = &mut w.info;
+        let (old_offset, old_size) = (i.offset, i.size);
         i.owner = info.owner.or(i.owner);
         i.style = info.style.or(i.style);
         i.show = info.show.or(i.show);
@@ -184,21 +207,50 @@ impl RailApp {
 
         match &w.local {
             Some((win, _)) => {
-                win.set_outer_position(position);
-                let _ = win.request_inner_size(size);
-                win.set_title(&title);
+                // Only real changes become X11 configure requests: Hyprland converts every request
+                // relative to the window's monitor, so a redundant one can move a window off-screen.
+                let moved = old_offset != Some((x, y));
+                if moved {
+                    win.set_outer_position(position);
+                }
+                if old_size != Some((width.get(), height.get())) {
+                    let _ = win.request_inner_size(size);
+                }
+                if w.title_due.is_none() {
+                    win.set_title(&title);
+                }
                 win.set_visible(visible);
                 win.set_minimized(show == SW_MINIMIZED);
                 // The framebuffer rectangle behind the window changed, even if its size did not.
                 win.request_redraw();
+                if moved
+                    && let Some(hyprland) = &self.hyprland
+                    && let Some(initial_title) = &w.initial_title
+                    && let Some(monitor) = hyprland.monitor_at(x, y)
+                    && w.monitor.as_deref() != Some(monitor)
+                {
+                    hyprland.move_to_monitor(initial_title, monitor);
+                    w.monitor = Some(monitor.to_owned());
+                }
             }
             None => {
                 if !visible {
                     return;
                 }
                 let popup = w.is_popup();
+                // Under Hyprland the window maps with a title that its per-monitor window rule
+                // matches; the real title follows once Hyprland has recorded it (`TITLE_DELAY`).
+                let monitor = self
+                    .hyprland
+                    .as_ref()
+                    .and_then(|hyprland| hyprland.monitor_at(x, y))
+                    .map(str::to_owned);
+                let initial_title = match (&self.hyprland, &monitor) {
+                    (Some(hyprland), Some(monitor)) => Some(hyprland.initial_title(monitor, id)),
+                    _ => None,
+                };
                 let attributes = WindowAttributes::default()
-                    .with_title(&title)
+                    .with_title(initial_title.as_deref().unwrap_or(&title))
                     .with_decorations(false)
                     .with_resizable(false)
                     .with_position(position)
@@ -214,6 +266,11 @@ impl RailApp {
                         return;
                     }
                 };
+                if initial_title.is_some() {
+                    w.title_due = Some(std::time::Instant::now() + TITLE_DELAY);
+                }
+                w.initial_title = initial_title;
+                w.monitor = monitor;
                 debug!(id, popup, ?position, ?size, %title, "created RemoteApp window");
                 let mut surface = softbuffer::Surface::new(&self.context, Arc::clone(&win)).expect("surface");
                 surface.resize(width, height).expect("surface resize");
@@ -300,6 +357,7 @@ impl RailApp {
             RdpOutputEvent::WindowingOrders(update) => self.apply_orders(event_loop, &update),
             RdpOutputEvent::ConnectionFailure(error) => {
                 eprintln!("Connection error: {}", error.report().with_locations());
+                crate::error_dialog(&format!("Connection failed:\n{}", error.report()));
                 event_loop.exit();
             }
             RdpOutputEvent::Terminated(result) => {
@@ -347,6 +405,7 @@ impl RailApp {
             RdpOutputEvent::RailExecuteResult(result) => info!(?result, "RemoteApp launch result"),
             RdpOutputEvent::RailExecuteFailed { executable, reason, .. } => {
                 eprintln!("RemoteApp launch of {executable} failed: {reason:?}");
+                crate::error_dialog(&format!("RemoteApp launch of {executable} failed: {reason:?}"));
                 event_loop.exit();
             }
             other => debug!(?other, "ignored output event"),
@@ -464,12 +523,32 @@ impl ApplicationHandler<RdpOutputEvent> for RailApp {
         self.handle_output(event_loop, event);
     }
 
-    fn about_to_wait(&mut self, _: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         // X11 delivers FocusOut and the sibling's FocusIn in one batch, so a switch between two of
         // our own windows never reaches here as a deactivation.
         if let Some(id) = self.pending_deactivate.take() {
             self.send_rail(RailInputEvent::Activate(ActivatePdu { window_id: id, enabled: false }));
         }
+        // Give new windows their real title once Hyprland has seen the initial one.
+        let now = std::time::Instant::now();
+        let mut next_due: Option<std::time::Instant> = None;
+        for w in self.windows.values_mut() {
+            let Some(due) = w.title_due else {
+                continue;
+            };
+            if due <= now {
+                if let Some((win, _)) = &w.local {
+                    win.set_title(w.info.title.as_deref().unwrap_or_default());
+                }
+                w.title_due = None;
+            } else {
+                next_due = Some(next_due.map_or(due, |n| n.min(due)));
+            }
+        }
+        event_loop.set_control_flow(match next_due {
+            Some(due) => ControlFlow::WaitUntil(due),
+            None => ControlFlow::Wait,
+        });
     }
 }
 
@@ -481,6 +560,9 @@ mod tests {
         RemoteWindow {
             info: WindowInfo { style: Some((style, ex_style)), owner: Some(owner), ..Default::default() },
             local: None,
+            initial_title: None,
+            monitor: None,
+            title_due: None,
         }
     }
 
