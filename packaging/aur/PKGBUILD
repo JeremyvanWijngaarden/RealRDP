@@ -1,9 +1,9 @@
 # Maintainer: Jeremy van Wijngaarden <jeremy.vanwijngaarden@vanschie.com>
 # Release checklist: tag RealRDP v$pkgver; bump _ironrdp_tag only when the IronRDP patches change.
 _gh_user=JeremyvanWijngaarden
-_ironrdp_tag=realrdp-v0.1.0
+_ironrdp_tag=realrdp-v0.1.3
 pkgname=realrdp
-pkgver=0.1.2
+pkgver=0.1.3
 pkgrel=1
 pkgdesc="mstsc-compatible Remote Desktop (RDP) client with RemoteApp support, built on IronRDP"
 arch=('x86_64')
