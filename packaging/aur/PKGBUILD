@@ -25,7 +25,7 @@ optdepends=('cups: printer redirection'
 # the source tree: makepkg puts the git source in $srcdir/IronRDP, exactly where the patch looks.
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
         "IronRDP::git+https://github.com/$_gh_user/IronRDP.git#tag=$_ironrdp_tag")
-sha256sums=('bc490e4a4500a78cf744452c70b68ad36921e9c2b0c3be5b7844c51b4b321aba'
+sha256sums=('f8222cde26cc1ff4fc043fe4855316979675f18ecb94faacfad1d550b7de65df'
             'b5c74a5bd3cf0e8447ce1515d2c6e71604eb490c1af63be9e5f035027295d869')
 
 # The binary is published to the pacman repo, so build for baseline x86-64 rather than whatever
