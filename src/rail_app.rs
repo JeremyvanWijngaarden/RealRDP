@@ -246,7 +246,7 @@ impl RailApp {
                     .and_then(|hyprland| hyprland.monitor_at(x, y))
                     .map(str::to_owned);
                 let initial_title = match (&self.hyprland, &monitor) {
-                    (Some(hyprland), Some(monitor)) => Some(hyprland.initial_title(monitor, id)),
+                    (Some(hyprland), Some(monitor)) => Some(hyprland.initial_title(monitor, id, popup)),
                     _ => None,
                 };
                 let attributes = WindowAttributes::default()
