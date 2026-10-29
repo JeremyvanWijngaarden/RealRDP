@@ -83,23 +83,29 @@ impl Hyprland {
         }
     }
 
-    /// Installs the window rules for this session, once per Hyprland Lua state.
+    /// Installs the window rules for this session. Named rules are updated in place when they
+    /// already exist, so a newer build replaces the rules an older one left in the Lua state.
     pub fn install_rules(&self) {
         let class = regex_literal(crate::WM_CLASS);
         let mut lua = format!(
-            "if not _G.__realrdp_rules then _G.__realrdp_rules = {{}} end \
-             local r = _G.__realrdp_rules \
-             if not r.look then r.look = hl.window_rule({{ name = \"realrdp\", match = {{ class = \"^{class}$\" }}, \
+            "hl.window_rule({{ name = \"realrdp\", match = {{ class = \"^{class}$\" }}, \
              border_size = 0, rounding = 0, no_anim = true, no_shadow = true, no_blur = true, opacity = \"1.0 override\", \
-             persistent_size = false }}) end "
+             persistent_size = false }}) "
         );
         for monitor in &self.monitors {
             let name = lua_string(&monitor.name);
+            let token = regex_literal(&token_prefix(&monitor.name));
             // Hyprland matches rule regexes against the whole string.
-            let prefix = lua_string(&format!("^{}.*$", regex_literal(&token_prefix(&monitor.name))));
+            let window = lua_string(&format!("^{token}[0-9]+\\]$"));
+            let popup = lua_string(&format!("^{token}[0-9]+ p\\]$"));
+            // Popups map silently: a non-silent monitor rule focuses that monitor, which takes
+            // focus from the window that owns the menu, and Windows then closes the menu.
+            let silent = lua_string(&format!("{} silent", monitor.name));
             lua.push_str(&format!(
-                "if not r[{name}] then r[{name}] = hl.window_rule({{ name = \"realrdp-\" .. {name}, \
-                 match = {{ class = \"^{class}$\", initial_title = {prefix} }}, monitor = {name} }}) end "
+                "hl.window_rule({{ name = \"realrdp-\" .. {name}, \
+                 match = {{ class = \"^{class}$\", initial_title = {window} }}, monitor = {name} }}) \
+                 hl.window_rule({{ name = \"realrdp-popup-\" .. {name}, \
+                 match = {{ class = \"^{class}$\", initial_title = {popup} }}, monitor = {silent} }}) "
             ));
         }
         debug!("installing Hyprland window rules");
@@ -120,8 +126,9 @@ impl Hyprland {
     }
 
     /// The initial title that makes the per-monitor rule assign `monitor` to a new window.
-    pub fn initial_title(&self, monitor: &str, id: u32) -> String {
-        format!("{}{id}]", token_prefix(monitor))
+    pub fn initial_title(&self, monitor: &str, id: u32, popup: bool) -> String {
+        let suffix = if popup { " p" } else { "" };
+        format!("{}{id}{suffix}]", token_prefix(monitor))
     }
 
     /// Moves the window created with `initial_title` to `monitor`; Hyprland re-derives its
@@ -207,7 +214,8 @@ mod tests {
     #[test]
     fn initial_title_matches_rule_prefix() {
         let h = hyprland();
-        assert_eq!(h.initial_title("DVI-I-1", 65932), "[DVI-I-1 65932]");
+        assert_eq!(h.initial_title("DVI-I-1", 65932, false), "[DVI-I-1 65932]");
+        assert_eq!(h.initial_title("DVI-I-1", 65932, true), "[DVI-I-1 65932 p]");
         assert_eq!(regex_literal("[DVI-I-1 65932]"), "\\[DVI\\-I\\-1 65932\\]");
         assert_eq!(lua_string("a\"b\\c"), "\"a\\\"b\\\\c\"");
     }
