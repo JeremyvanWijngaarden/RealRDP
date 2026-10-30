@@ -2,7 +2,7 @@
 //!
 //! Desktop sessions reuse the upstream `ironrdp-viewer` App. RemoteApp sessions
 //! (`remoteapplicationmode:i:1`) use [`rail_app::RailApp`], which maps every remote window to a
-//! local X11 window.
+//! local X11 window; desktop sessions run natively on Wayland when available.
 
 mod dialog;
 mod hyprland;
@@ -23,7 +23,8 @@ use std::os::unix::process::CommandExt as _;
 use tokio::runtime;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoop;
-use winit::platform::x11::{EventLoopBuilderExtX11 as _, WindowAttributesExtX11 as _};
+use winit::platform::wayland::WindowAttributesExtWayland;
+use winit::platform::x11::{EventLoopBuilderExtX11 as _, WindowAttributesExtX11};
 use winit::window::{Icon, WindowAttributes};
 
 /// `StartupWMClass` in `realrdp.desktop`: lets the desktop match our windows to its icon.
@@ -96,11 +97,6 @@ fn main() -> anyhow::Result<()> {
     let cli = ViewerConfig::parse_from(&args).context("CLI arguments parsing")?;
     setup_logging().context("unable to initialize logging")?;
 
-    // RemoteApp needs windows at absolute screen positions, which only X11 (or XWayland) allows.
-    let mut builder = EventLoop::<RdpOutputEvent>::with_user_event();
-    builder.with_x11();
-    let event_loop = builder.build()?;
-
     let dump_rdp = cli.dump_rdp().map(ToOwned::to_owned);
     let redirect_printers = cli.redirect_printers();
     let mut config = cli.into_config().context("configuration")?;
@@ -128,6 +124,14 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // RemoteApp needs windows at absolute screen positions, which only X11 (or XWayland) allows;
+    // the desktop session is one window and runs natively on Wayland when available.
+    let mut builder = EventLoop::<RdpOutputEvent>::with_user_event();
+    if config.connector().remote_application_mode {
+        builder.with_x11();
+    }
+    let event_loop = builder.build()?;
+
     let event_loop_proxy = event_loop.create_proxy();
     let (output_event_sender, mut output_event_receiver) = output_channel(64);
     let initial_window_size = PhysicalSize::new(
@@ -154,12 +158,12 @@ fn main() -> anyhow::Result<()> {
     let mut desktop_app = (!remote_app)
         .then(|| {
             App::new(&event_loop, &input_event_sender, initial_window_size).map(|app| {
-                app.with_window_attributes(
-                    WindowAttributes::default()
-                        .with_title(format!("{destination} - Remote Desktop Connection"))
-                        .with_window_icon(window_icon())
-                        .with_name(WM_CLASS, WM_CLASS),
-                )
+                let attributes = WindowAttributes::default()
+                    .with_title(format!("{destination} - Remote Desktop Connection"))
+                    .with_window_icon(window_icon());
+                // WM_CLASS on X11, app_id on Wayland: both match `realrdp.desktop` for the icon.
+                let attributes = WindowAttributesExtX11::with_name(attributes, WM_CLASS, WM_CLASS);
+                app.with_window_attributes(WindowAttributesExtWayland::with_name(attributes, WM_CLASS, WM_CLASS))
             })
         })
         .transpose()
