@@ -1,6 +1,6 @@
 pkgbase = realrdp
 	pkgdesc = mstsc-compatible Remote Desktop (RDP) client with RemoteApp support, built on IronRDP
-	pkgver = 0.1.4
+	pkgver = 0.1.5
 	pkgrel = 1
 	url = https://github.com/JeremyvanWijngaarden/RealRDP
 	arch = x86_64
@@ -22,9 +22,9 @@ pkgbase = realrdp
 	optdepends = zenity: error dialogs
 	options = !lto
 	backup = etc/pacman.d/realrdp-repo
-	source = realrdp-0.1.4.tar.gz::https://github.com/JeremyvanWijngaarden/RealRDP/archive/refs/tags/v0.1.4.tar.gz
-	source = IronRDP::git+https://github.com/JeremyvanWijngaarden/IronRDP.git#tag=realrdp-v0.1.3
-	sha256sums = f8222cde26cc1ff4fc043fe4855316979675f18ecb94faacfad1d550b7de65df
-	sha256sums = b5c74a5bd3cf0e8447ce1515d2c6e71604eb490c1af63be9e5f035027295d869
+	source = realrdp-0.1.5.tar.gz::https://github.com/JeremyvanWijngaarden/RealRDP/archive/refs/tags/v0.1.5.tar.gz
+	source = IronRDP::git+https://github.com/JeremyvanWijngaarden/IronRDP.git#tag=realrdp-v0.1.5
+	sha256sums = 99b09060ecaf3ab1b1cc99f9fa1ff0f0fa2febe083ab3e81cedd3630439329e1
+	sha256sums = 076b0879cbb25362cc225ff991a7929288e07175f7b2815b61185654fab3fc08
 
 pkgname = realrdp
