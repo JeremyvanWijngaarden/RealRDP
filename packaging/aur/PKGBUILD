@@ -3,7 +3,7 @@
 _gh_user=JeremyvanWijngaarden
 _ironrdp_tag=realrdp-v0.1.5
 pkgname=realrdp
-pkgver=0.1.6
+pkgver=0.1.7
 pkgrel=1
 pkgdesc="mstsc-compatible Remote Desktop (RDP) client with RemoteApp support, built on IronRDP"
 arch=('x86_64')
