@@ -49,6 +49,10 @@ type Surface = softbuffer::Surface<DisplayHandle<'static>, Arc<Window>>;
 struct RemoteWindow {
     info: WindowInfo,
     local: Option<(Arc<Window>, Surface)>,
+    /// Where the local window actually is. Hyprland keeps windows out of reserved areas (bars), so
+    /// this can differ from `info.offset`; drawing and input use it so the window stays a 1:1
+    /// view onto the framebuffer at its real screen position.
+    position: (i32, i32),
     /// Under Hyprland: the title the window was mapped with, which identifies it in Hyprland's
     /// window rules and dispatchers, and the monitor Hyprland last assigned to it.
     initial_title: Option<String>,
@@ -178,6 +182,7 @@ impl RailApp {
         let w = self.windows.entry(id).or_insert_with(|| RemoteWindow {
             info: WindowInfo { id: info.id, ..Default::default() },
             local: None,
+            position: (0, 0),
             initial_title: None,
             monitor: None,
             title_due: None,
@@ -283,6 +288,7 @@ impl RailApp {
                 win.request_redraw();
                 self.by_local.insert(win.id(), id);
                 w.local = Some((win, surface));
+                w.position = (x, y);
                 self.had_windows = true;
             }
         }
@@ -293,9 +299,10 @@ impl RailApp {
         let Some(w) = self.windows.get_mut(&id) else {
             return;
         };
-        let (Some((win, surface)), Some((ox, oy))) = (w.local.as_mut(), w.info.offset) else {
+        let Some((win, surface)) = w.local.as_mut() else {
             return;
         };
+        let (ox, oy) = w.position;
         let size = win.inner_size();
         let (Some(width), Some(height)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) else {
             return;
@@ -341,9 +348,10 @@ impl RailApp {
                     self.buffer[(usize::from(r.top) + i) * bw + usize::from(r.left)..][..rw].copy_from_slice(row);
                 }
                 for w in self.windows.values() {
-                    let (Some((win, _)), Some((ox, oy))) = (&w.local, w.info.offset) else {
+                    let Some((win, _)) = &w.local else {
                         continue;
                     };
+                    let (ox, oy) = w.position;
                     let s = win.inner_size();
                     if ox <= i32::from(r.right)
                         && oy <= i32::from(r.bottom)
@@ -416,9 +424,17 @@ impl RailApp {
         let Some(&id) = self.by_local.get(&local_id) else {
             return;
         };
-        let offset = self.windows.get(&id).and_then(|w| w.info.offset).unwrap_or_default();
+        let offset = self.windows.get(&id).map(|w| w.position).unwrap_or_default();
         match event {
             WindowEvent::RedrawRequested => self.draw(id),
+            WindowEvent::Moved(position) => {
+                if let Some(w) = self.windows.get_mut(&id) {
+                    w.position = (position.x, position.y);
+                    if let Some((win, _)) = &w.local {
+                        win.request_redraw();
+                    }
+                }
+            }
             WindowEvent::CloseRequested => {
                 self.send_rail(RailInputEvent::SystemCommand(SystemCommandPdu {
                     window_id: id,
@@ -560,6 +576,7 @@ mod tests {
         RemoteWindow {
             info: WindowInfo { style: Some((style, ex_style)), owner: Some(owner), ..Default::default() },
             local: None,
+            position: (0, 0),
             initial_title: None,
             monitor: None,
             title_due: None,
