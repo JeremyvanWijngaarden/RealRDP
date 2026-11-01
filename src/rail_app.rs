@@ -81,8 +81,13 @@ pub struct RailApp {
     windows: HashMap<u32, RemoteWindow>,
     by_local: HashMap<WindowId, u32>,
     had_windows: bool,
-    /// Window that lost focus in this event batch; dropped if focus moved to another window of ours.
-    pending_deactivate: Option<u32>,
+    /// Set when local focus left a window in this event batch; dropped if it moved to another
+    /// window of ours.
+    pending_deactivate: bool,
+    /// The server's active window, as the desktop order last reported it.
+    active: Option<u32>,
+    /// Window deactivated when focus left our windows; reactivated when focus comes back.
+    deactivated: Option<u32>,
     cursor: Option<CustomCursor>,
     icon: Option<Icon>,
     cursor_visible: bool,
@@ -117,7 +122,9 @@ impl RailApp {
             windows: HashMap::new(),
             by_local: HashMap::new(),
             had_windows: false,
-            pending_deactivate: None,
+            pending_deactivate: false,
+            active: None,
+            deactivated: None,
             cursor: None,
             icon,
             cursor_visible: true,
@@ -160,6 +167,7 @@ impl RailApp {
                     }
                 }
                 WindowOrder::Desktop { non_monitored, active_window, .. } => {
+                    self.active = active_window.or(self.active);
                     if non_monitored {
                         self.windows.clear();
                         self.by_local.clear();
@@ -447,11 +455,17 @@ impl RailApp {
                 if self.windows.get(&id).is_some_and(RemoteWindow::is_popup) {
                     return;
                 }
+                // Focus follows the mouse under most tiling compositors; activating the hovered window
+                // would raise it over the others on the server. A click activates it like on Windows,
+                // so returning focus only restores the window that was active before.
                 if enabled {
-                    self.pending_deactivate = None;
-                    self.send_rail(RailInputEvent::Activate(ActivatePdu { window_id: id, enabled: true }));
+                    self.pending_deactivate = false;
+                    if let Some(prev) = self.deactivated.take() {
+                        let window_id = if self.windows.contains_key(&prev) { prev } else { id };
+                        self.send_rail(RailInputEvent::Activate(ActivatePdu { window_id, enabled: true }));
+                    }
                 } else {
-                    self.pending_deactivate = Some(id);
+                    self.pending_deactivate = true;
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -542,7 +556,10 @@ impl ApplicationHandler<RdpOutputEvent> for RailApp {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         // X11 delivers FocusOut and the sibling's FocusIn in one batch, so a switch between two of
         // our own windows never reaches here as a deactivation.
-        if let Some(id) = self.pending_deactivate.take() {
+        if core::mem::take(&mut self.pending_deactivate)
+            && let Some(id) = self.active.filter(|id| self.windows.contains_key(id))
+        {
+            self.deactivated = Some(id);
             self.send_rail(RailInputEvent::Activate(ActivatePdu { window_id: id, enabled: false }));
         }
         // Give new windows their real title once Hyprland has seen the initial one.
